@@ -1,0 +1,12 @@
+[package]
+name = "tgds-core"
+version = "0.1.0"
+edition = "2021"
+description = "TGLD Secure Archive cryptographic archive engine"
+license = "MIT"
+
+[lib]
+name = "tgds_core"
+path = "src/lib.rs"
+
+[dependencies]
