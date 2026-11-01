@@ -1,7 +1,6 @@
-//! TGLD Secure Archive Core
-//!
-//! Core engine for the TGDS encrypted archive format.
+//! TGLD Secure Archive Core.
 
+pub mod crypto;
 pub mod format;
 
 pub const PROJECT_NAME: &str = "TGLD Secure Archive";
