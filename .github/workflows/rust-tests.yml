@@ -24,6 +24,9 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Format Rust code
+        run: cargo fmt --all
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
