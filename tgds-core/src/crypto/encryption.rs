@@ -28,14 +28,18 @@ pub fn seal(
 ) -> Result<SealedData, CryptoError> {
     let mut nonce = [0u8; NONCE_SIZE];
 
-    getrandom::fill(&mut nonce).map_err(|_| CryptoError::RandomGenerationFailed)?;
+    getrandom::fill(&mut nonce)
+        .map_err(|_| CryptoError::RandomGenerationFailed)?;
 
-    let cipher =
-        XChaCha20Poly1305::new_from_slice(key).map_err(|_| CryptoError::InvalidParameters)?;
+    let cipher = XChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| CryptoError::InvalidParameters)?;
+
+    let nonce_value = XNonce::try_from(nonce.as_slice())
+        .map_err(|_| CryptoError::InvalidParameters)?;
 
     let ciphertext = cipher
         .encrypt(
-            XNonce::from_slice(&nonce),
+            &nonce_value,
             Payload {
                 msg: plaintext,
                 aad: associated_data,
@@ -56,12 +60,15 @@ pub fn open(
     ciphertext: &[u8],
     associated_data: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, CryptoError> {
-    let cipher =
-        XChaCha20Poly1305::new_from_slice(key).map_err(|_| CryptoError::InvalidParameters)?;
+    let cipher = XChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| CryptoError::InvalidParameters)?;
+
+    let nonce_value = XNonce::try_from(nonce.as_slice())
+        .map_err(|_| CryptoError::InvalidParameters)?;
 
     let plaintext = cipher
         .decrypt(
-            XNonce::from_slice(nonce),
+            &nonce_value,
             Payload {
                 msg: ciphertext,
                 aad: associated_data,
