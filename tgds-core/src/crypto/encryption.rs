@@ -28,11 +28,10 @@ pub fn seal(
 ) -> Result<SealedData, CryptoError> {
     let mut nonce = [0u8; NONCE_SIZE];
 
-    getrandom::fill(&mut nonce)
-        .map_err(|_| CryptoError::RandomGenerationFailed)?;
+    getrandom::fill(&mut nonce).map_err(|_| CryptoError::RandomGenerationFailed)?;
 
-    let cipher = XChaCha20Poly1305::new_from_slice(key)
-        .map_err(|_| CryptoError::InvalidParameters)?;
+    let cipher =
+        XChaCha20Poly1305::new_from_slice(key).map_err(|_| CryptoError::InvalidParameters)?;
 
     let ciphertext = cipher
         .encrypt(
@@ -57,8 +56,8 @@ pub fn open(
     ciphertext: &[u8],
     associated_data: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, CryptoError> {
-    let cipher = XChaCha20Poly1305::new_from_slice(key)
-        .map_err(|_| CryptoError::InvalidParameters)?;
+    let cipher =
+        XChaCha20Poly1305::new_from_slice(key).map_err(|_| CryptoError::InvalidParameters)?;
 
     let plaintext = cipher
         .decrypt(
@@ -84,8 +83,7 @@ mod tests {
         let aad = b"TGDS-TEST-V1";
 
         let encrypted = seal(&key, message, aad).unwrap();
-        let decrypted =
-            open(&key, &encrypted.nonce, &encrypted.ciphertext, aad).unwrap();
+        let decrypted = open(&key, &encrypted.nonce, &encrypted.ciphertext, aad).unwrap();
 
         assert_eq!(&*decrypted, message);
     }
@@ -127,13 +125,7 @@ mod tests {
         encrypted.ciphertext[0] ^= 1;
 
         assert_eq!(
-            open(
-                &key,
-                &encrypted.nonce,
-                &encrypted.ciphertext,
-                b"metadata"
-            )
-            .unwrap_err(),
+            open(&key, &encrypted.nonce, &encrypted.ciphertext, b"metadata").unwrap_err(),
             CryptoError::AuthenticationFailed
         );
     }

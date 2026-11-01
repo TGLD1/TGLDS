@@ -24,8 +24,7 @@ const PARALLELISM: u32 = 1;
 pub fn generate_salt() -> Result<[u8; SALT_SIZE], CryptoError> {
     let mut salt = [0u8; SALT_SIZE];
 
-    getrandom::fill(&mut salt)
-        .map_err(|_| CryptoError::RandomGenerationFailed)?;
+    getrandom::fill(&mut salt).map_err(|_| CryptoError::RandomGenerationFailed)?;
 
     Ok(salt)
 }
