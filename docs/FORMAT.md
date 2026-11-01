@@ -473,3 +473,110 @@ Elles doivent encore faire l'objet :
 
 Le format ne doit pas être déclaré prêt pour la production avant
 la réussite de ces validations.
+
+---
+
+## 19. Profils cryptographiques obligatoires
+
+Cette section prévaut sur toute règle antérieure incompatible.
+
+### 19.1 Profil Argon2id v1
+
+Pour KDF ID 1, les paramètres sont obligatoirement :
+
+- Algorithme : Argon2id.
+- Version : 0x13.
+- Mémoire : 65536 KiB.
+- Itérations : 3.
+- Parallélisme : 1.
+- Sortie : 32 octets.
+
+Toute autre combinaison est rejetée avant le lancement d'Argon2id.
+
+Un futur profil devra utiliser un nouvel identifiant KDF.
+
+### 19.2 Gestion des nonces
+
+Les nonces XChaCha20-Poly1305 sont générés indépendamment
+avec un CSPRNG et mesurent exactement 24 octets.
+
+La réutilisation volontaire d'un nonce avec une même clé est interdite.
+
+Le lecteur ne doit pas exiger le chargement de tous les nonces
+en mémoire pour vérifier leur unicité.
+
+La sécurité repose sur la génération aléatoire cryptographique
+et sur la taille de 192 bits des nonces.
+
+Toute erreur du générateur aléatoire interrompt immédiatement
+l'opération cryptographique.
+
+## 20. Validation des chemins
+
+Les chemins du manifeste utilisent exclusivement `/`
+comme séparateur portable.
+
+Un chemin doit :
+
+- Être relatif à la racine de l'archive.
+- Être encodé en UTF-8 valide.
+- Ne contenir aucun octet NUL.
+- Ne contenir aucun segment vide, `.` ou `..`.
+- Ne pas commencer par `/`.
+- Ne pas contenir de séparateur `\`.
+- Ne pas représenter un chemin de lecteur Windows ou UNC.
+- Ne pas contenir de caractères de contrôle.
+- Respecter la limite de 4096 octets.
+
+Les chemins dupliqués sont interdits.
+
+Les collisions après normalisation Unicode ou comparaison
+insensible à la casse sur les systèmes concernés doivent être
+détectées avant extraction.
+
+L'extraction doit empêcher toute sortie du répertoire de destination,
+y compris par le biais de liens symboliques.
+
+## 21. Cohérence des blocs et décompression
+
+Les blocs d'un fichier sont identifiés par son file_id
+et par un index commençant à zéro.
+
+Les index doivent être continus, sans doublon ni omission.
+
+Le nombre de blocs observé doit correspondre exactement
+au manifeste et à l'en-tête principal.
+
+Un fichier vide possède zéro bloc.
+
+Pour une compression désactivée, la taille compressée doit
+être égale à la taille originale.
+
+Pour Zstandard :
+
+- La taille décompressée doit correspondre exactement à la taille originale.
+- La décompression doit être limitée à cette taille.
+- Les données supplémentaires ou les trames non autorisées sont rejetées.
+- Une erreur de décompression invalide le fichier concerné.
+
+Aucun fichier ne doit être livré comme valide avant
+l'authentification de tous ses blocs.
+
+## 22. Compatibilité entre spécification et implémentation
+
+L'implémentation Rust devra respecter les règles suivantes :
+
+- L'enveloppe doit recevoir l'identifiant d'archive et les paramètres KDF
+  nécessaires à la construction de son AAD.
+- La dérivation HKDF doit être indépendante de la fonction Argon2id.
+- La DEK ne doit jamais être utilisée directement pour les données.
+- Le changement de mot de passe doit préserver les octets du manifeste
+  et des blocs chiffrés.
+- Le changement de mot de passe ne doit pas modifier l'en-tête principal.
+- Toute modification d'un champ authentifié doit provoquer un échec
+  d'authentification.
+
+Les tests devront couvrir les archives tronquées, les tailles incohérentes,
+les chemins dangereux, les blocs manquants, les doublons et les données
+ajoutées après la fin de l'archive.
+
