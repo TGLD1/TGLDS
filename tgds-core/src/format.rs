@@ -1,12 +1,12 @@
-//! TGDS binary format identification.
+//! Identification du format binaire TGDS.
 
-/// Four-byte archive signature.
+/// Signature binaire de quatre octets.
 pub const MAGIC: [u8; 4] = *b"TGDS";
 
-/// Initial format version.
+/// Version initiale du format.
 pub const FORMAT_VERSION: u16 = 1;
 
-/// Current development version.
+/// Version actuelle du développement.
 pub const DEVELOPMENT_VERSION: &str = "0.1.0";
 
 #[cfg(test)]

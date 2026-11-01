@@ -1,3 +1,5 @@
+//! Chiffrement authentifié des données avec XChaCha20-Poly1305.
+
 use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
     XChaCha20Poly1305, XNonce,
@@ -6,14 +8,19 @@ use zeroize::Zeroizing;
 
 use super::CryptoError;
 
+/// Taille du nonce en octets : 192 bits.
 pub const NONCE_SIZE: usize = 24;
 
+/// Données chiffrées et nonce associé.
 #[derive(Debug)]
 pub struct SealedData {
     pub nonce: [u8; NONCE_SIZE],
     pub ciphertext: Vec<u8>,
 }
 
+/// Chiffre des données avec un nonce aléatoire.
+///
+/// Les données associées sont authentifiées, mais non chiffrées.
 pub fn seal(
     key: &[u8; 32],
     plaintext: &[u8],
@@ -27,17 +34,23 @@ pub fn seal(
     let cipher = XChaCha20Poly1305::new_from_slice(key)
         .map_err(|_| CryptoError::InvalidParameters)?;
 
-    let ciphertext = cipher.encrypt(
-        XNonce::from_slice(&nonce),
-        Payload {
-            msg: plaintext,
-            aad: associated_data,
-        },
-    ).map_err(|_| CryptoError::EncryptionFailed)?;
+    let ciphertext = cipher
+        .encrypt(
+            XNonce::from_slice(&nonce),
+            Payload {
+                msg: plaintext,
+                aad: associated_data,
+            },
+        )
+        .map_err(|_| CryptoError::EncryptionFailed)?;
 
     Ok(SealedData { nonce, ciphertext })
 }
 
+/// Déchiffre et authentifie les données.
+///
+/// Aucun texte clair n'est retourné si l'authentification échoue.
+/// Le résultat est automatiquement effacé lors de sa destruction.
 pub fn open(
     key: &[u8; 32],
     nonce: &[u8; NONCE_SIZE],
@@ -47,13 +60,15 @@ pub fn open(
     let cipher = XChaCha20Poly1305::new_from_slice(key)
         .map_err(|_| CryptoError::InvalidParameters)?;
 
-    let plaintext = cipher.decrypt(
-        XNonce::from_slice(nonce),
-        Payload {
-            msg: ciphertext,
-            aad: associated_data,
-        },
-    ).map_err(|_| CryptoError::AuthenticationFailed)?;
+    let plaintext = cipher
+        .decrypt(
+            XNonce::from_slice(nonce),
+            Payload {
+                msg: ciphertext,
+                aad: associated_data,
+            },
+        )
+        .map_err(|_| CryptoError::AuthenticationFailed)?;
 
     Ok(Zeroizing::new(plaintext))
 }
@@ -69,9 +84,8 @@ mod tests {
         let aad = b"TGDS-TEST-V1";
 
         let encrypted = seal(&key, message, aad).unwrap();
-        let decrypted = open(
-            &key, &encrypted.nonce, &encrypted.ciphertext, aad
-        ).unwrap();
+        let decrypted =
+            open(&key, &encrypted.nonce, &encrypted.ciphertext, aad).unwrap();
 
         assert_eq!(&*decrypted, message);
     }
@@ -94,8 +108,13 @@ mod tests {
         let encrypted = seal(&key, b"secret", b"metadata").unwrap();
 
         assert_eq!(
-            open(&wrong_key, &encrypted.nonce,
-                &encrypted.ciphertext, b"metadata").unwrap_err(),
+            open(
+                &wrong_key,
+                &encrypted.nonce,
+                &encrypted.ciphertext,
+                b"metadata"
+            )
+            .unwrap_err(),
             CryptoError::AuthenticationFailed
         );
     }
@@ -108,8 +127,13 @@ mod tests {
         encrypted.ciphertext[0] ^= 1;
 
         assert_eq!(
-            open(&key, &encrypted.nonce,
-                &encrypted.ciphertext, b"metadata").unwrap_err(),
+            open(
+                &key,
+                &encrypted.nonce,
+                &encrypted.ciphertext,
+                b"metadata"
+            )
+            .unwrap_err(),
             CryptoError::AuthenticationFailed
         );
     }
@@ -117,11 +141,17 @@ mod tests {
     #[test]
     fn wrong_associated_data_is_rejected() {
         let key = [7u8; 32];
+
         let encrypted = seal(&key, b"secret", b"correct metadata").unwrap();
 
         assert_eq!(
-            open(&key, &encrypted.nonce,
-                &encrypted.ciphertext, b"wrong metadata").unwrap_err(),
+            open(
+                &key,
+                &encrypted.nonce,
+                &encrypted.ciphertext,
+                b"wrong metadata"
+            )
+            .unwrap_err(),
             CryptoError::AuthenticationFailed
         );
     }

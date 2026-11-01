@@ -1,9 +1,12 @@
-//! TGLD Secure Archive Core.
+//! Moteur principal de TGLD Secure Archive.
 
 pub mod crypto;
 pub mod format;
 
+/// Nom officiel du projet.
 pub const PROJECT_NAME: &str = "TGLD Secure Archive";
+
+/// Extension officielle des archives.
 pub const FORMAT_EXTENSION: &str = "tgds";
 
 #[cfg(test)]
