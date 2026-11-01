@@ -1,193 +1,303 @@
-# Spécification du format binaire TGLD Secure Archive
+# Spécification binaire de TGLD Secure Archive
 
-**Nom du format :** TGLD Secure Archive  
-**Extension :** `.tgds`  
-**Identifiant :** TGDS  
-**Version de spécification :** 1  
-**Statut :** Conception initiale  
-**Plateformes cibles :** Android, Windows et Linux
+**Nom :** TGLD Secure Archive
+**Extension :** `.tgds`
+**Signature :** `TGDS`
+**Version du format :** 1
+**Statut :** Spécification technique en cours de validation
+**Plateformes :** Android, Windows et Linux
 
 ---
 
 ## 1. Objectifs
 
-Le format TGDS est un conteneur binaire destiné au stockage sécurisé de fichiers et de documents.
+TGDS est un conteneur binaire destiné au stockage sécurisé de fichiers.
 
-Il doit assurer :
+Ses objectifs sont :
 
-- La confidentialité des données.
-- L'authenticité des données chiffrées.
-- La détection des modifications non autorisées.
-- La protection des métadonnées.
-- La prise en charge de plusieurs fichiers.
-- L'évolution du format sans rupture inutile de compatibilité.
+- Confidentialité des données.
+- Authentification cryptographique.
+- Protection des métadonnées.
+- Prise en charge de plusieurs fichiers.
+- Détection des modifications et des troncatures.
+- Compatibilité entre les plateformes.
+- Évolution contrôlée du format.
 
-Aucune porte dérobée ne doit être intégrée au format.
+Aucune porte dérobée ne doit être intégrée.
 
 ## 2. Conventions binaires
 
-Tous les champs numériques multioctets utilisent l'ordre Little-endian.
-
-Les longueurs sont exprimées en octets, sauf indication contraire.
-
-Les lecteurs doivent vérifier les longueurs avant toute allocation mémoire.
-
-Les champs réservés doivent être initialisés à zéro dans cette version.
-
-Un lecteur ne doit jamais interpréter une valeur inconnue comme une instruction valide.
+- Tous les nombres multioctets sont encodés en Little-endian.
+- Les offsets commencent à zéro.
+- Les longueurs sont exprimées en octets.
+- Les chaînes du manifest sont encodées en UTF-8.
+- Les champs réservés doivent être égaux à zéro.
+- Les longueurs provenant d'une archive doivent être validées avant toute allocation.
+- Les lecteurs doivent refuser les versions non prises en charge.
 
 ## 3. Organisation générale
 
-Une archive TGDS v1 est organisée dans l'ordre suivant :
+L'archive est constituée des éléments suivants :
 
 1. En-tête principal.
-2. Enveloppe de clé.
-3. Manifest chiffré.
-4. Séquence de blocs de données chiffrés.
-5. Marqueur de fin.
+2. Enveloppe cryptographique.
+3. Enregistrement du manifest chiffré.
+4. Enregistrements des blocs de données chiffrés.
+5. Fin exacte du fichier après le dernier bloc.
+
+La version 1 ne définit pas de marqueur de fin séparé. Le nombre de blocs annoncé dans l'en-tête et la fin exacte du fichier permettent de détecter les archives incomplètes ou contenant des données supplémentaires.
 
 ## 4. En-tête principal
 
-L'en-tête principal occupe exactement 32 octets.
+L'en-tête occupe exactement 64 octets.
 
-| Décalage | Taille | Champ | Description |
+| Offset | Taille | Champ | Valeur ou règle |
 |---:|---:|---|---|
-| 0 | 4 | Magic | Signature ASCII `TGDS` |
-| 4 | 2 | Version | Version du format : 1 |
-| 6 | 2 | Header flags | Drapeaux définis par la version |
-| 8 | 4 | Header size | Taille de l'en-tête : 32 |
-| 12 | 16 | Archive ID | Identifiant aléatoire unique |
-| 28 | 4 | Reserved | Valeur zéro |
+| 0 | 4 | Magic | ASCII `TGDS` |
+| 4 | 2 | Format version | 1 |
+| 6 | 2 | Flags | 0 en version 1 |
+| 8 | 4 | Header size | 64 |
+| 12 | 16 | Archive ID | Identifiant aléatoire |
+| 28 | 4 | Envelope size | 112 |
+| 32 | 8 | Manifest ciphertext size | Taille exacte du texte chiffré |
+| 40 | 4 | Chunk count | Nombre total de blocs |
+| 44 | 4 | Max chunk size | 1 048 576 octets |
+| 48 | 16 | Reserved | Tous les octets à zéro |
 
-Les lecteurs doivent rejeter les signatures incorrectes, les tailles invalides et les versions non prises en charge.
+L'identifiant d'archive est généré avec le générateur cryptographique du système.
 
-## 5. Enveloppe de clé
+L'en-tête complet est authentifié indirectement par les enregistrements cryptographiques qui l'utilisent comme donnée associée.
 
-L'enveloppe protège la clé de données DEK.
+Toute valeur de champ incompatible avec la version 1 doit provoquer le rejet de l'archive.
 
-Elle contient :
+## 5. Enveloppe cryptographique
 
-- Un identifiant d'algorithme.
-- Les paramètres Argon2id.
-- Un sel cryptographique de 16 octets.
-- Un nonce XChaCha20-Poly1305 de 24 octets.
-- La clé DEK chiffrée.
-- Le tag d'authentification.
+L'enveloppe occupe exactement 112 octets.
 
-La DEK possède une taille de 32 octets.
+| Offset relatif | Taille | Champ |
+|---:|---:|---|
+| 0 | 2 | Envelope version |
+| 2 | 2 | KDF identifier |
+| 4 | 4 | Argon2 memory en Kio |
+| 8 | 4 | Argon2 iterations |
+| 12 | 4 | Argon2 parallelism |
+| 16 | 16 | Salt |
+| 32 | 24 | Nonce |
+| 56 | 48 | Wrapped DEK |
+| 104 | 8 | Reserved |
 
-Le résultat chiffré de la DEK possède une taille de 48 octets, tag inclus.
+Valeurs de la version 1 :
 
-Les paramètres Argon2id doivent être enregistrés dans l'enveloppe afin de permettre leur évolution et la récupération des anciennes archives.
+- Envelope version : 1.
+- KDF identifier : 1 pour Argon2id.
+- DEK : 32 octets.
+- Salt : 16 octets.
+- Nonce : 24 octets.
+- Wrapped DEK : 48 octets, tag d'authentification inclus.
+- Chiffrement : XChaCha20-Poly1305.
 
-Les paramètres doivent être validés avant toute opération coûteuse de dérivation.
+Paramètres Argon2id de référence :
 
-## 6. Manifest
+- Mémoire initiale : 65 536 Kio.
+- Passages : 3.
+- Parallélisme : 1.
+- Version Argon2 : 1.3.
 
-Le manifest décrit le contenu de l'archive.
+Les paramètres réellement utilisés sont enregistrés dans l'enveloppe.
 
-Il est entièrement chiffré et authentifié.
+Les lecteurs doivent appliquer une politique de limites avant de lancer Argon2id :
 
-Il contient notamment :
+- Mémoire autorisée : 65 536 à 262 144 Kio.
+- Passages autorisés : 3 à 10.
+- Parallélisme autorisé : 1 à 4.
 
-- La version du manifest.
-- Le nombre de fichiers.
-- Les noms des fichiers.
-- Les tailles originales.
-- Les tailles compressées.
-- Les identifiants des fichiers.
-- Les informations de compression.
-- Les références aux blocs de données.
+Un appareil peut refuser une archive si les ressources nécessaires dépassent sa politique locale. Il ne doit jamais réduire silencieusement les paramètres enregistrés.
 
-Les chemins doivent être traités comme des données non fiables lors de l'extraction.
+L'authentification de la DEK doit être liée à l'identifiant de l'archive et aux paramètres de l'enveloppe par des données associées authentifiées.
 
-Les chemins absolus, les traversées de répertoires et les noms dangereux doivent être rejetés.
+## 6. Enregistrement du manifest
 
-## 7. Blocs de données
+L'enregistrement du manifest commence immédiatement après l'enveloppe.
 
-Les fichiers sont découpés en blocs indépendants.
+Structure :
 
-Chaque bloc possède :
+| Offset relatif | Taille | Champ |
+|---:|---:|---|
+| 0 | 24 | Nonce |
+| 24 | 8 | Ciphertext size |
+| 32 | Variable | Ciphertext et tag |
 
-- Un identifiant de fichier.
-- Un index de bloc.
-- Une longueur de données.
-- Un nonce cryptographique.
-- Un contenu chiffré.
-- Un tag d'authentification.
+La taille annoncée dans l'en-tête principal correspond à la taille du ciphertext, tag inclus, sans compter le nonce et le champ de longueur.
 
-Le chiffrement utilise XChaCha20-Poly1305.
+Le manifest en clair contient :
 
-La compression Zstandard intervient avant le chiffrement.
+| Champ | Taille |
+|---|---:|
+| Magic `TGMF` | 4 octets |
+| Manifest version | 2 octets |
+| Flags | 2 octets |
+| File count | 4 octets |
+| Total chunk count | 4 octets |
+| Entrées des fichiers | Variable |
 
-Chaque bloc doit être authentifié avant que son contenu soit utilisé.
+Chaque entrée de fichier contient :
 
-Un nonce ne doit jamais être réutilisé avec la même clé.
+| Champ | Taille |
+|---|---:|
+| File ID | 16 octets |
+| Path length | 2 octets |
+| Media type length | 2 octets |
+| Original size | 8 octets |
+| File chunk count | 4 octets |
+| Compression identifier | 2 octets |
+| Flags | 2 octets |
+| Chemin UTF-8 | Variable |
+| Type MIME UTF-8 | Variable |
 
-## 8. Authentification des structures
+Le manifest est entièrement chiffré et authentifié.
 
-Les données associées authentifiées (AAD) doivent lier les blocs à leur contexte.
+Limites initiales :
 
-Elles doivent inclure au minimum :
+- Manifest en clair : 64 Mio maximum.
+- Nombre de fichiers : 100 000 maximum.
+- Chemin : 4 096 octets maximum.
+- Type MIME : 255 octets maximum.
 
-- L'identifiant de l'archive.
-- La version du format.
-- L'identifiant du fichier.
-- L'index du bloc.
-- Les longueurs attendues.
+Les chemins sont relatifs à la racine d'extraction. Les chemins absolus, traversées de répertoires, noms interdits et collisions doivent être rejetés ou traités selon une politique explicite et sûre.
 
-Le manifest doit également être lié à l'identifiant de l'archive et à sa version.
+## 7. Enregistrements des blocs
 
-La modification d'un bloc, son déplacement ou son remplacement doit provoquer un échec d'authentification.
+Les blocs sont stockés après le manifest.
 
-## 9. Marqueur de fin
+Chaque enregistrement commence par un en-tête fixe de 60 octets.
 
-Le marqueur de fin permet de détecter certaines archives tronquées ou incomplètes.
+| Offset relatif | Taille | Champ |
+|---:|---:|---|
+| 0 | 16 | File ID |
+| 16 | 4 | Chunk index |
+| 20 | 2 | Compression identifier |
+| 22 | 2 | Flags |
+| 24 | 4 | Original chunk size |
+| 28 | 4 | Compressed size |
+| 32 | 24 | Nonce |
+| 56 | 4 | Ciphertext size |
+| 60 | Variable | Ciphertext et tag |
 
-Il ne remplace pas l'authentification cryptographique.
+La taille du ciphertext doit être égale à la taille compressée plus 16 octets pour le tag d'authentification.
 
-La version 1 utilisera une structure de fin définie dans l'implémentation binaire.
+La taille originale d'un bloc ne doit pas dépasser 1 048 576 octets.
 
-## 10. Limites et protections
+Identifiants de compression :
 
-Les lecteurs doivent appliquer des limites configurables concernant :
+- 0 : aucune compression.
+- 1 : Zstandard.
 
-- La taille totale de l'archive.
-- La taille du manifest.
-- Le nombre de fichiers.
-- La taille maximale d'un bloc.
-- Le nombre total de blocs.
-- Les paramètres de dérivation Argon2id.
-- La taille des données après décompression.
+La compression est toujours effectuée avant le chiffrement.
 
-Aucune longueur provenant d'une archive ne doit être utilisée directement pour une allocation sans validation.
+Chaque bloc utilise XChaCha20-Poly1305 et un nonce de 24 octets.
 
-Les erreurs d'authentification ne doivent jamais exposer de données partiellement déchiffrées.
+Les nonces doivent être uniques pour chaque opération de chiffrement sous une même clé. Le moteur doit utiliser un mécanisme de génération et de gestion qui empêche leur réutilisation accidentelle.
 
-## 11. Changement de mot de passe
+## 8. Données associées authentifiées
 
-Le changement de mot de passe consiste à :
+Les AAD doivent lier chaque élément chiffré à son contexte.
 
-1. Récupérer la DEK avec l'ancien mot de passe.
-2. Générer un nouveau sel.
-3. Dériver une nouvelle KEK.
-4. Protéger la DEK avec cette nouvelle KEK.
-5. Remplacer l'ancienne enveloppe de manière sûre.
+Pour l'enveloppe :
 
-Les données déjà chiffrées ne sont pas rechiffrées.
+- Identifiant de l'archive.
+- Version du format.
+- Paramètres de dérivation.
+- Sel.
+- Identifiant du domaine cryptographique.
 
-## 12. Compatibilité
+Pour le manifest :
+
+- En-tête principal complet.
+- Enveloppe complète.
+- Identifiant du domaine cryptographique.
+
+Pour chaque bloc :
+
+- Identifiant de l'archive.
+- Empreinte SHA-256 du ciphertext du manifest.
+- En-tête complet du bloc.
+- Identifiant du domaine cryptographique.
+
+Les encodages AAD doivent être définis sans ambiguïté avant l'implémentation.
+
+Une modification, substitution ou permutation de blocs doit provoquer un échec d'authentification ou de validation structurelle.
+
+## 9. Limites globales
+
+Limites initiales de la version 1 :
+
+| Élément | Limite |
+|---|---:|
+| Taille d'un bloc original | 1 Mio |
+| Taille du manifest en clair | 64 Mio |
+| Nombre de fichiers | 100 000 |
+| Taille d'un chemin | 4 Kio |
+| Nombre total de blocs | 1 048 576 |
+| Taille maximale théorique des données originales | 1 Tio |
+
+Ces limites sont des plafonds du format, pas des objectifs de consommation mémoire.
+
+Les lecteurs doivent traiter les blocs progressivement et éviter de charger toute l'archive en mémoire.
+
+Les décompressions doivent être bornées par la taille originale annoncée et par les limites locales.
+
+## 10. Changement de mot de passe
+
+Le changement de mot de passe suit les opérations suivantes :
+
+1. Authentifier l'ancienne enveloppe.
+2. Récupérer la DEK.
+3. Générer un nouveau sel.
+4. Dériver une nouvelle KEK.
+5. Protéger la même DEK avec la nouvelle KEK.
+6. Remplacer l'enveloppe de manière atomique ou produire une nouvelle archive temporaire.
+
+Les blocs de données ne sont pas rechiffrés.
+
+## 11. Détection des erreurs
+
+Le lecteur doit rejeter :
+
+- Une signature incorrecte.
+- Une version inconnue.
+- Une taille incohérente.
+- Un champ réservé non nul.
+- Un paramètre KDF hors limites.
+- Une enveloppe de taille incorrecte.
+- Un manifest invalide.
+- Un nombre de blocs incohérent.
+- Un bloc tronqué ou supplémentaire.
+- Un tag d'authentification invalide.
+- Une archive contenant des octets inattendus après le dernier bloc.
+
+Aucune donnée non authentifiée ne doit être présentée comme un contenu valide.
+
+## 12. Compatibilité et évolution
 
 La version du format est indépendante de la version du logiciel.
 
-Un lecteur doit refuser proprement une version qu'il ne comprend pas.
+Une modification incompatible nécessite une nouvelle version du format.
 
-Les évolutions incompatibles nécessiteront une nouvelle version du format.
+Les lecteurs doivent refuser proprement les versions qu'ils ne comprennent pas.
 
-## 13. Statut de cette spécification
+Les champs réservés ne peuvent être réutilisés que dans une version qui définit explicitement leur nouvelle signification.
 
-Cette documentation constitue une base de conception.
+## 13. Statut de sécurité
 
-Les structures détaillées de l'enveloppe, du manifest, des blocs et du marqueur de fin devront être définies précisément avant leur implémentation.
+Cette spécification constitue une proposition normative de TGDS v1.
 
-Le format ne doit pas être considéré comme finalisé ni prêt pour une utilisation en production avant validation des spécifications, des tests de sécurité et un audit cryptographique indépendant.
+Elle ne doit pas être considérée comme finalisée avant :
+
+- La définition exacte des encodages AAD.
+- La validation des limites et des paramètres KDF.
+- La définition des règles d'écriture atomique.
+- La revue du modèle de menace.
+- Les tests d'interopérabilité.
+- Un audit cryptographique indépendant.
+
+Aucune archive produite par une implémentation expérimentale ne doit être considérée comme garantie sûre pour un usage de production.
