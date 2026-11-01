@@ -324,3 +324,6 @@ mod tests {
         );
     }
 }
+
+/// Validation de l'enveloppe cryptographique.
+pub mod envelope;
